@@ -1,0 +1,2 @@
+unittests-script: test_scripts/run_unittests_vitest.ps1
+build-dest: dist

@@ -1,0 +1,1001 @@
+# Pixel Agents — webview-ui/public Asset Catalog
+#
+# Consolidated inventory of every file under `webview-ui/public/` in the
+# pablodelucca/pixel-agents repository. All `path` values are RELATIVE to
+# `webview-ui/public/`. Documentation gathered from on-disk inspection
+# (file sizes, image dimensions), the per-furniture `manifest.json` files,
+# the `default-layout-1.json` bundled layout, and the project's CLAUDE.md.
+
+source_repo: https://github.com/pablodelucca/pixel-agents
+root: webview-ui/public/
+
+# -----------------------------------------------------------------------------
+# Notes on how these assets are consumed
+# -----------------------------------------------------------------------------
+notes:
+  pipeline: |
+    `esbuild.js` copies `webview-ui/public/assets/` into `dist/assets/` at
+    build time. The extension's `assetLoader.ts` then parses the PNGs with
+    `pngjs`, converts them into `SpriteData` (a 2D hex array where alpha ≥ 2
+    is treated as visible), and pushes the resulting catalog to the React
+    webview via `postMessage` (`characterSpritesLoaded` →
+    `floorTilesLoaded` → `wallTilesLoaded` → `furnitureAssetsLoaded` →
+    `layoutLoaded`).
+  tile_size: 16  # px — the canonical grid cell size used throughout the engine
+  rendering: |
+    All sprites are authored as pixel art at native resolution and scaled by
+    integer device-pixels-per-sprite-pixel at draw time (no `ctx.scale(dpr)`).
+    Furniture sprites are bottom-aligned to their footprint; sprites taller
+    than `footprintH * 16` extend upward (used for things like chair backs
+    and wall art).
+  color_pipeline: |
+    Floor tiles are authored in grayscale and tinted at runtime via the
+    Photoshop-style "Colorize" path in `colorize.ts` (HSL + brightness +
+    contrast). Furniture and character hue-shifts use the "Adjust" path of
+    the same module, which rotates the original pixel HSL instead.
+
+# =============================================================================
+# Root-level files
+# =============================================================================
+files:
+
+  - path: Screenshot.jpg
+    type: image/jpeg
+    bytes: 111189
+    purpose: Marketing / README screenshot of the running extension.
+    description: |
+      JPG screenshot showing the Pixel Agents office in action: a hardwood
+      open-plan workspace on the left (rows of desks with PCs and wooden
+      chairs, bookshelves along the back wall, hanging plants), a tiled
+      kitchen/break area in the top-right (vending machine, water cooler,
+      clock, fridge), and a navy meeting/lounge area in the bottom-right
+      (sofas around a coffee table, framed painting, bookshelves and plants).
+      Five pixel-art characters (Claude Code agents) are visible — three
+      seated at desks/sofas, one walking, one standing in the kitchen.
+      Used as the "what this looks like" hero image for the project.
+    consumers:
+      - Repo README / marketplace listing (not loaded by the running webview)
+
+  - path: Screenshot_v1.1.jpg
+    type: image/jpeg
+    bytes: 60810
+    purpose: Updated marketing screenshot for the v1.1 release.
+    description: |
+      Newer screenshot variant kept alongside `Screenshot.jpg` to document
+      visual changes introduced in v1.1 (e.g. new furniture types, refreshed
+      character palettes, updated UI overlays). Same role as `Screenshot.jpg`
+      — README / store imagery, not runtime content.
+
+  - path: banner.png
+    type: image/png
+    bytes: 13478
+    dimensions: 1100x435
+    purpose: Wide marketing banner used in marketplace / GitHub README.
+    description: |
+      Large pixel-art banner image (≈2.5:1 aspect) showing the Pixel Agents
+      product name and key visual. Wide enough to serve as a hero image at
+      the top of the README and as the VS Code Marketplace gallery banner.
+      Not referenced by the React runtime.
+
+  - path: characters.png
+    type: image/png
+    bytes: 4229
+    dimensions: 160x36
+    purpose: Legacy / preview character spritesheet kept at the public root.
+    description: |
+      Compact horizontal strip of character previews (10 columns × ~36 px
+      tall) — appears to be an earlier all-in-one spritesheet from before
+      the move to per-character PNGs under `assets/characters/`. Retained
+      at the public root for preview / documentation purposes; the runtime
+      now consumes `assets/characters/char_0.png` … `char_5.png` instead.
+
+# =============================================================================
+# Fonts
+# =============================================================================
+  - path: fonts/FSPixelSansUnicode-Regular.ttf
+    type: font/ttf
+    bytes: 1077160
+    purpose: Project-wide pixel font for all UI text.
+    description: |
+      "FS Pixel Sans Unicode (Regular)" TrueType font — the pixel-style
+      typeface used by every overlay, modal, toolbar and tooltip in the
+      webview. Registered via an `@font-face` rule in
+      `webview-ui/src/index.css` and applied globally so React inline styles
+      and canvas-rendered labels (status text, ToolOverlay, EditActionBar,
+      SettingsModal, etc.) all share the same crisp pixel look.
+    consumers:
+      - webview-ui/src/index.css (`@font-face` declaration)
+
+# =============================================================================
+# Bundled default layout
+# =============================================================================
+  - path: assets/default-layout-1.json
+    type: application/json
+    bytes: 14425
+    purpose: |
+      Bundled fallback office layout loaded when no user-level layout exists
+      at `~/.pixel-agents/layout.json` and no legacy workspace state is
+      available to migrate.
+    description: |
+      Serialized `OfficeLayout` for the starter office. Fields:
+        - `version: 1`             — layout schema version
+        - `cols: 21`, `rows: 22`   — grid dimensions (within the
+                                     `MAX_COLS`/`MAX_ROWS` = 64×64 cap)
+        - `layoutRevision: 1`      — bump used by migrations
+        - `tiles: number[]`        — row-major array of TileType IDs
+                                     (e.g. 255 = VOID, 0 = wall, 1/7/9 =
+                                     floor pattern indices)
+        - `tileColors: (object|null)[]`
+                                   — per-tile HSBC colorize parameters
+                                     `{h, s, b, c}` aligned 1:1 with `tiles`;
+                                     `null` for untinted/VOID cells
+        - `furniture: PlacedFurniture[]`
+                                   — array of placed items, each with
+                                     `{uid, type, col, row}` where `type`
+                                     references an asset id from
+                                     `assets/furniture/<ID>/manifest.json`
+                                     (variant orientation appended with
+                                     `:left` for mirrored side sprites).
+      The included layout reproduces the office seen in `Screenshot.jpg`:
+      a hardwood work area (desks + PCs + wooden chairs + bookshelves +
+      hanging plants + clock) on the left, and a carpeted lounge with sofas,
+      a coffee table, plants and a painting on the right.
+    consumers:
+      - src/assetLoader.ts (`loadDefaultLayout()`)
+      - src/layoutPersistence.ts (`migrateAndLoadLayout()` fallback path)
+
+# =============================================================================
+# Characters — 6 pre-colored player sprites
+# =============================================================================
+# Each PNG is a full character spritesheet at 112×96 px:
+#   - 7 frames horizontally × 16 px wide  = 112 px
+#   - 3 direction rows vertically × 32 px = 96 px (24 px sprite,
+#                                                   8 px top padding)
+# Row order:    0 = down-facing, 1 = up-facing, 2 = right-facing
+# Frame order:  walk1, walk2, walk3, type1, type2, read1, read2
+# Left-facing is produced at runtime by horizontally flipping the right row.
+# No dedicated idle frame — the idle pose reuses walk2.
+# Generated by `scripts/export-characters.ts`, which bakes the
+# `CHARACTER_PALETTES` colors into the shared template.
+# -----------------------------------------------------------------------------
+
+  - path: assets/characters/char_0.png
+    type: image/png
+    bytes: 3956
+    dimensions: 112x96
+    purpose: Character palette index 0 — first of six skin/outfit variants.
+    description: |
+      Pre-colored character spritesheet (palette 0). 7×3 frame grid
+      (walk×3 / type×2 / read×2 by down/up/right). Used as the first
+      diverse-palette pick by `pickDiversePalette()`. Additional agents
+      beyond six reuse this palette with a random hue shift (45°–315°)
+      applied at runtime via `adjustSprite()`.
+
+  - path: assets/characters/char_1.png
+    type: image/png
+    bytes: 5022
+    dimensions: 112x96
+    purpose: Character palette index 1.
+    description: Same layout as `char_0.png`, distinct skin/outfit palette.
+
+  - path: assets/characters/char_2.png
+    type: image/png
+    bytes: 5221
+    dimensions: 112x96
+    purpose: Character palette index 2.
+    description: Same layout as `char_0.png`, distinct skin/outfit palette.
+
+  - path: assets/characters/char_3.png
+    type: image/png
+    bytes: 4930
+    dimensions: 112x96
+    purpose: Character palette index 3.
+    description: Same layout as `char_0.png`, distinct skin/outfit palette.
+
+  - path: assets/characters/char_4.png
+    type: image/png
+    bytes: 5488
+    dimensions: 112x96
+    purpose: Character palette index 4.
+    description: Same layout as `char_0.png`, distinct skin/outfit palette.
+
+  - path: assets/characters/char_5.png
+    type: image/png
+    bytes: 5071
+    dimensions: 112x96
+    purpose: Character palette index 5 — last unique pre-colored palette.
+    description: |
+      Same layout as `char_0.png`, last of the six unique palettes.
+      Agents 7+ reuse one of palettes 0–5 with an `adjustSprite()` hue
+      rotation to keep visual diversity without authoring more PNGs.
+
+# =============================================================================
+# Floor tiles — 16×16 grayscale patterns, colorized at runtime
+# =============================================================================
+# Each floor PNG is a single 16×16 tile authored in grayscale; the editor's
+# HSBC sliders tint it via the Colorize path in `colorize.ts`. The chosen
+# color is baked per-cell into `tileColors` on the layout. Floor tile IDs in
+# `default-layout-1.json` (e.g. 0, 1, 7, 9) reference the pattern indices
+# below.
+# -----------------------------------------------------------------------------
+
+  - path: assets/floors/floor_0.png
+    type: image/png
+    bytes: 1719
+    dimensions: 16x16
+    purpose: Floor pattern 0 — solid / void-adjacent base tile.
+    description: |
+      Smallest of the floor PNGs (1.7 KB) — a near-uniform grayscale base
+      tile used as the perimeter/edge pattern in the default layout
+      (corresponds to tile ID `0`, which surrounds the rooms).
+
+  - path: assets/floors/floor_1.png
+    type: image/png
+    bytes: 3590
+    dimensions: 16x16
+    purpose: Floor pattern 1 — first textured floor (e.g. tile / plank).
+    description: |
+      Detailed 16×16 grayscale pattern, intended to be tinted into the
+      tiled kitchen / lounge floors seen in `Screenshot.jpg`. Referenced
+      by tile ID `1` in the bundled layout.
+
+  - path: assets/floors/floor_2.png
+    type: image/png
+    bytes: 3590
+    dimensions: 16x16
+    purpose: Floor pattern 2 — additional textured floor variant.
+    description: 16×16 grayscale floor pattern, selectable in the editor palette.
+
+  - path: assets/floors/floor_3.png
+    type: image/png
+    bytes: 3594
+    dimensions: 16x16
+    purpose: Floor pattern 3.
+    description: 16×16 grayscale floor pattern, selectable in the editor palette.
+
+  - path: assets/floors/floor_4.png
+    type: image/png
+    bytes: 3594
+    dimensions: 16x16
+    purpose: Floor pattern 4.
+    description: 16×16 grayscale floor pattern, selectable in the editor palette.
+
+  - path: assets/floors/floor_5.png
+    type: image/png
+    bytes: 3597
+    dimensions: 16x16
+    purpose: Floor pattern 5.
+    description: 16×16 grayscale floor pattern, selectable in the editor palette.
+
+  - path: assets/floors/floor_6.png
+    type: image/png
+    bytes: 3597
+    dimensions: 16x16
+    purpose: Floor pattern 6.
+    description: 16×16 grayscale floor pattern, selectable in the editor palette.
+
+  - path: assets/floors/floor_7.png
+    type: image/png
+    bytes: 3596
+    dimensions: 16x16
+    purpose: Floor pattern 7 — used for the hardwood work area in the default layout.
+    description: |
+      16×16 grayscale plank/hardwood pattern. Referenced by tile ID `7` in
+      `default-layout-1.json` — covers the left half of the starter office
+      (the desks/PCs area).
+
+  - path: assets/floors/floor_8.png
+    type: image/png
+    bytes: 3592
+    dimensions: 16x16
+    purpose: Floor pattern 8 — newest pattern in the set.
+    description: |
+      16×16 grayscale pattern; the highest-indexed floor variant. The
+      project's CLAUDE.md historically references 7 patterns from a single
+      `floors.png`, but the on-disk pack ships nine individual files
+      (floor_0 … floor_8) — extra variants added since the doc was written.
+
+# =============================================================================
+# Walls — auto-tiled wall set
+# =============================================================================
+  - path: assets/walls/wall_0.png
+    type: image/png
+    bytes: 1738
+    dimensions: 64x128
+    purpose: Wall auto-tile sheet (4×4 grid of 16×32 pieces).
+    description: |
+      Wall spritesheet packed as 4 columns × 4 rows of 16×32 pieces, one
+      per 4-bit neighbour bitmask (`N=1, E=2, S=4, W=8`). Each piece is
+      16 px wide × 32 px tall — the bottom 16 px sits on the tile, and the
+      top 16 px extends upward as the wall's 3-D face. The renderer
+      computes the appropriate bitmask at draw time
+      (`webview-ui/src/office/wallTiles.ts`) and emits the matching slice.
+      Walls are colorizable via the editor's HSBC sliders (Colorize mode)
+      and the chosen color is stored per-cell in the layout's `tileColors`.
+      Source generator: `scripts/generate-walls.js`; visual editor:
+      `scripts/wall-tile-editor.html`.
+
+# =============================================================================
+# Furniture — one directory per asset (`<ID>/<ID>.png` + `manifest.json`)
+# =============================================================================
+# Every furniture asset is a directory whose name matches the asset ID. The
+# directory contains:
+#   - one or more `<VARIANT>.png` sprites (variants are orientations or
+#     animation/state frames, e.g. `*_FRONT`, `*_BACK`, `*_SIDE`,
+#     `*_ON_1`, `*_OFF`).
+#   - a `manifest.json` describing the asset and its members.
+#
+# Manifest fields:
+#   - `id`               — asset ID (matches directory name and PNG basename)
+#   - `name`             — human-readable label shown in the editor palette
+#   - `category`         — one of: desks, chairs, storage, electronics,
+#                          decor, wall, misc (drives the editor tab)
+#   - `type`             — `"asset"` (single sprite) or `"group"`
+#                          (multiple members)
+#   - `groupType`        — for groups: `"rotation"` (orientations) or
+#                          `"state"` (on/off) or `"animation"` (frames)
+#   - `rotationScheme`   — `"2-way"` (front/side) or `"3-way-mirror"`
+#                          (front/back/side, where `side` is mirrored at
+#                          runtime to produce the opposite direction)
+#   - `canPlaceOnWalls`  — true → snaps onto wall tiles only
+#   - `canPlaceOnSurfaces` — true → may be placed on top of desk furniture
+#   - `backgroundTiles`  — top N footprint rows that other furniture /
+#                          characters may overlap (used for back portions
+#                          of tall items like plants and large desks)
+#   - `width`/`height`   — sprite pixel size
+#   - `footprintW`/`footprintH` — tiles occupied on the grid (16 px each)
+#   - `members[]`        — for groups: nested asset/group entries with
+#                          `orientation` (`front|back|side`), `state`
+#                          (`on|off`), `frame` (animation index), and an
+#                          optional `mirrorSide: true` flag.
+# -----------------------------------------------------------------------------
+
+  - path: assets/furniture/BIN/BIN.png
+    type: image/png
+    bytes: 252
+    dimensions: 16x16
+    asset_id: BIN
+    category: misc
+    footprint: { w: 1, h: 1 }
+    purpose: Single-tile trash bin decoration.
+    description: |
+      16×16 single-orientation bin sprite. Cannot be wall-mounted or
+      surface-placed (`canPlaceOnWalls: false`, `canPlaceOnSurfaces: false`).
+      Used as standalone floor decor — appears in the default layout in the
+      bottom-left corner.
+
+  - path: assets/furniture/BIN/manifest.json
+    type: application/json
+    bytes: 227
+    purpose: Manifest for the BIN furniture asset.
+    description: |
+      Defines the bin as a `type: "asset"` single-sprite item in the `misc`
+      category with a 1×1 footprint and no rotation/state variants.
+
+  - path: assets/furniture/BOOKSHELF/BOOKSHELF.png
+    type: image/png
+    bytes: 388
+    dimensions: 32x16
+    asset_id: BOOKSHELF
+    category: wall
+    footprint: { w: 2, h: 1 }
+    purpose: Two-tile-wide wall-mounted bookshelf.
+    description: |
+      32×16 sprite of a single-shelf bookcase that snaps to wall tiles.
+      `canPlaceOnWalls: true`, 2×1 footprint. Pairs with `DOUBLE_BOOKSHELF`
+      for taller installations.
+
+  - path: assets/furniture/BOOKSHELF/manifest.json
+    type: application/json
+    bytes: 238
+    purpose: Manifest for BOOKSHELF.
+    description: Wall-category, 32×16 px, 2×1 footprint, single sprite.
+
+  - path: assets/furniture/CACTUS/CACTUS.png
+    type: image/png
+    bytes: 558
+    dimensions: 16x32
+    asset_id: CACTUS
+    category: decor
+    footprint: { w: 1, h: 2 }
+    purpose: Tall cactus decor.
+    description: |
+      16×32 sprite. `backgroundTiles: 1` — the top row of the footprint is
+      treated as a background tile, so characters and other furniture may
+      overlap it and z-sort behind the plant's base. 1×2 floor footprint.
+
+  - path: assets/furniture/CACTUS/manifest.json
+    type: application/json
+    bytes: 234
+    purpose: Manifest for CACTUS.
+    description: |
+      Single-sprite decor with 1×2 footprint and `backgroundTiles: 1` so
+      the upper half of the cactus renders above other tiles without
+      blocking pathing through them.
+
+  - path: assets/furniture/CLOCK/CLOCK.png
+    type: image/png
+    bytes: 304
+    dimensions: 16x32
+    asset_id: CLOCK
+    category: wall
+    footprint: { w: 1, h: 2 }
+    purpose: Wall-mounted analog clock.
+    description: |
+      16×32 wall-only sprite. `canPlaceOnWalls: true`, 1×2 footprint
+      (extends one tile above the wall row). Visible in `Screenshot.jpg`
+      above the kitchen area.
+
+  - path: assets/furniture/CLOCK/manifest.json
+    type: application/json
+    bytes: 230
+    purpose: Manifest for CLOCK.
+    description: Wall-category, 16×32 px, 1×2 footprint.
+
+  - path: assets/furniture/COFFEE/COFFEE.png
+    type: image/png
+    bytes: 223
+    dimensions: 16x16
+    asset_id: COFFEE
+    category: misc
+    footprint: { w: 1, h: 1 }
+    purpose: Coffee cup that sits on top of desks/tables.
+    description: |
+      16×16 sprite. `canPlaceOnSurfaces: true` — may overlap any tile
+      belonging to an `isDesk` furniture item; the renderer z-sorts it
+      above the desk via the `deskZY + 0.5` rule. Common on the lounge
+      coffee table in the default layout.
+
+  - path: assets/furniture/COFFEE/manifest.json
+    type: application/json
+    bytes: 233
+    purpose: Manifest for COFFEE.
+    description: Single 16×16 misc asset with `canPlaceOnSurfaces: true`.
+
+  - path: assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png
+    type: image/png
+    bytes: 274
+    dimensions: 32x32
+    asset_id: COFFEE_TABLE
+    category: desks
+    footprint: { w: 2, h: 2 }
+    purpose: 2×2 lounge coffee table (desk-category, supports surface items).
+    description: |
+      32×32 sprite. Classified as a desk so it accepts surface items like
+      `COFFEE` on top. Centerpiece of the lounge area in the default layout.
+
+  - path: assets/furniture/COFFEE_TABLE/manifest.json
+    type: application/json
+    bytes: 246
+    purpose: Manifest for COFFEE_TABLE.
+    description: Desks-category, 32×32 px, 2×2 footprint, single sprite.
+
+  - path: assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png
+    type: image/png
+    bytes: 250
+    dimensions: 16x16
+    asset_id: CUSHIONED_BENCH
+    category: chairs
+    footprint: { w: 1, h: 1 }
+    purpose: Single-tile padded bench seat.
+    description: |
+      16×16 chair-category sprite. Each footprint tile produces a seat in
+      `layoutToSeats()`; for a 1×1 bench there's exactly one seat keyed by
+      the placement `uid`.
+
+  - path: assets/furniture/CUSHIONED_BENCH/manifest.json
+    type: application/json
+    bytes: 253
+    purpose: Manifest for CUSHIONED_BENCH.
+    description: Chairs-category, 16×16 px, 1×1 footprint, single sprite.
+
+  - path: assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_FRONT.png
+    type: image/png
+    bytes: 247
+    dimensions: 16x16
+    asset_id: CUSHIONED_CHAIR_FRONT
+    category: chairs
+    orientation: front
+    purpose: Front-facing variant of the cushioned chair rotation group.
+    description: Member of the 3-way-mirror `CUSHIONED_CHAIR` rotation group.
+
+  - path: assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png
+    type: image/png
+    bytes: 205
+    dimensions: 16x16
+    asset_id: CUSHIONED_CHAIR_BACK
+    category: chairs
+    orientation: back
+    purpose: Back-facing variant of the cushioned chair.
+    description: |
+      Back orientation. The renderer z-sorts back-facing chairs slightly
+      higher (`zY = (row+1)*TILE_SIZE + 1`) so the chair back draws in
+      front of any character sitting in it.
+
+  - path: assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_SIDE.png
+    type: image/png
+    bytes: 255
+    dimensions: 16x16
+    asset_id: CUSHIONED_CHAIR_SIDE
+    category: chairs
+    orientation: side
+    purpose: Side (right-facing) variant; flipped at runtime for left-facing.
+    description: |
+      Side orientation with `mirrorSide: true`. The editor offers both
+      `CUSHIONED_CHAIR_SIDE` and `CUSHIONED_CHAIR_SIDE:left`; the `:left`
+      variant is the same sprite mirrored horizontally at draw time.
+
+  - path: assets/furniture/CUSHIONED_CHAIR/manifest.json
+    type: application/json
+    bytes: 976
+    purpose: Manifest for the CUSHIONED_CHAIR rotation group.
+    description: |
+      `type: "group"`, `groupType: "rotation"`, `rotationScheme:
+      "3-way-mirror"`. Lists three member assets (front / back / side)
+      sharing a 1×1 footprint; the editor palette shows only the front
+      variant and the `R` key cycles through orientations.
+
+  - path: assets/furniture/DESK/DESK_FRONT.png
+    type: image/png
+    bytes: 310
+    dimensions: 48x32
+    asset_id: DESK_FRONT
+    category: desks
+    orientation: front
+    footprint: { w: 3, h: 2 }
+    purpose: 3-wide desk facing the camera (workstation surface).
+    description: |
+      48×32 sprite of a 3-tile-wide desk. `backgroundTiles: 1` — the back
+      row is a background tile so monitors, lamps and characters can
+      overlap visually while still occupying the floor footprint.
+
+  - path: assets/furniture/DESK/DESK_SIDE.png
+    type: image/png
+    bytes: 278
+    dimensions: 16x64
+    asset_id: DESK_SIDE
+    category: desks
+    orientation: side
+    footprint: { w: 1, h: 4 }
+    purpose: Side orientation of the desk (vertical 1×4 footprint).
+    description: |
+      16×64 sprite — a long desk seen edge-on, occupying one column and
+      four rows. Used when the rotation group is set to its side variant.
+
+  - path: assets/furniture/DESK/manifest.json
+    type: application/json
+    bytes: 649
+    purpose: Manifest for the DESK rotation group (2-way).
+    description: |
+      `groupType: "rotation"`, `rotationScheme: "2-way"` with `DESK_FRONT`
+      (3×2) and `DESK_SIDE` (1×4) members. `backgroundTiles: 1` applies
+      group-wide.
+
+  - path: assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png
+    type: image/png
+    bytes: 627
+    dimensions: 32x32
+    asset_id: DOUBLE_BOOKSHELF
+    category: wall
+    footprint: { w: 2, h: 2 }
+    purpose: Two-shelf wall-mounted bookcase (taller than BOOKSHELF).
+    description: |
+      32×32 wall sprite. `canPlaceOnWalls: true`, 2×2 footprint. Used along
+      the back walls of the work and lounge areas in the default layout.
+
+  - path: assets/furniture/DOUBLE_BOOKSHELF/manifest.json
+    type: application/json
+    bytes: 252
+    purpose: Manifest for DOUBLE_BOOKSHELF.
+    description: Wall-category, 32×32 px, 2×2 footprint, single sprite.
+
+  - path: assets/furniture/HANGING_PLANT/HANGING_PLANT.png
+    type: image/png
+    bytes: 693
+    dimensions: 16x32
+    asset_id: HANGING_PLANT
+    category: wall
+    footprint: { w: 1, h: 2 }
+    purpose: Plant that hangs from a wall and can also sit on surfaces.
+    description: |
+      16×32 sprite. Unusual in that it sets both `canPlaceOnWalls: true`
+      and `canPlaceOnSurfaces: true`, so it can be hung against a wall or
+      placed on top of a desk/shelf.
+
+  - path: assets/furniture/HANGING_PLANT/manifest.json
+    type: application/json
+    bytes: 246
+    purpose: Manifest for HANGING_PLANT.
+    description: |
+      Wall-category, 16×32 px, 1×2 footprint, with both wall and surface
+      placement enabled.
+
+  - path: assets/furniture/LARGE_PAINTING/LARGE_PAINTING.png
+    type: image/png
+    bytes: 1056
+    dimensions: 32x32
+    asset_id: LARGE_PAINTING
+    category: wall
+    footprint: { w: 2, h: 2 }
+    purpose: 2×2 framed wall painting (centerpiece artwork).
+    description: |
+      32×32 wall sprite. `canPlaceOnWalls: true`. Hangs above the lounge
+      sofa in `Screenshot.jpg`.
+
+  - path: assets/furniture/LARGE_PAINTING/manifest.json
+    type: application/json
+    bytes: 248
+    purpose: Manifest for LARGE_PAINTING.
+    description: Wall-category, 32×32 px, 2×2 footprint, single sprite.
+
+  - path: assets/furniture/LARGE_PLANT/LARGE_PLANT.png
+    type: image/png
+    bytes: 1285
+    dimensions: 32x48
+    asset_id: LARGE_PLANT
+    category: decor
+    footprint: { w: 2, h: 3 }
+    purpose: Tall floor plant occupying a 2×3 footprint.
+    description: |
+      32×48 decor sprite with `backgroundTiles: 2` — the top two rows of
+      the footprint act as background tiles, letting characters walk
+      "behind" the upper foliage and other furniture overlap it.
+
+  - path: assets/furniture/LARGE_PLANT/manifest.json
+    type: application/json
+    bytes: 245
+    purpose: Manifest for LARGE_PLANT.
+    description: Decor-category, 32×48 px, 2×3 footprint, `backgroundTiles: 2`.
+
+  # ---- PC: rotation group (3-way-mirror) with nested state + animation ----
+  - path: assets/furniture/PC/PC_FRONT_OFF.png
+    type: image/png
+    bytes: 427
+    dimensions: 16x32
+    asset_id: PC_FRONT_OFF
+    category: electronics
+    orientation: front
+    state: off
+    purpose: Front-facing PC, screen off (default placement state).
+    description: |
+      Default state shown in the editor palette. The screen flips to the
+      `ON` animation when an active agent is seated at the adjacent desk
+      (see `officeState.rebuildFurnitureInstances()`).
+
+  - path: assets/furniture/PC/PC_FRONT_ON_1.png
+    type: image/png
+    bytes: 479
+    dimensions: 16x32
+    asset_id: PC_FRONT_ON_1
+    orientation: front
+    state: on
+    frame: 0
+    purpose: First animation frame for the front-facing PC, screen on.
+
+  - path: assets/furniture/PC/PC_FRONT_ON_2.png
+    type: image/png
+    bytes: 476
+    dimensions: 16x32
+    asset_id: PC_FRONT_ON_2
+    orientation: front
+    state: on
+    frame: 1
+    purpose: Second animation frame for the front-facing PC, screen on.
+
+  - path: assets/furniture/PC/PC_FRONT_ON_3.png
+    type: image/png
+    bytes: 485
+    dimensions: 16x32
+    asset_id: PC_FRONT_ON_3
+    orientation: front
+    state: on
+    frame: 2
+    purpose: Third animation frame for the front-facing PC, screen on.
+
+  - path: assets/furniture/PC/PC_BACK.png
+    type: image/png
+    bytes: 349
+    dimensions: 16x32
+    asset_id: PC_BACK
+    orientation: back
+    purpose: Back-facing PC variant.
+    description: Used when the rotation group is set to face away from the camera.
+
+  - path: assets/furniture/PC/PC_SIDE.png
+    type: image/png
+    bytes: 451
+    dimensions: 16x32
+    asset_id: PC_SIDE
+    orientation: side
+    purpose: Side-facing PC; mirrored at runtime for the opposite side.
+    description: |
+      `mirrorSide: true`. Both `PC_SIDE` and `PC_SIDE:left` are used in the
+      default layout (PCs flanking the rows of desks).
+
+  - path: assets/furniture/PC/manifest.json
+    type: application/json
+    bytes: 2025
+    purpose: Manifest for the PC rotation/state/animation group.
+    description: |
+      Three-level nested group: outer `rotation` (3-way-mirror) → for the
+      `front` orientation, a `state` group (`on`/`off`) → for `on`, an
+      `animation` group cycling `PC_FRONT_ON_1/2/3`. `back` and `side`
+      orientations are single sprites. `canPlaceOnSurfaces: true` and
+      `backgroundTiles: 1` apply to the whole group. Demonstrates the
+      furniture catalog's full expressive power.
+
+  - path: assets/furniture/PLANT/PLANT.png
+    type: image/png
+    bytes: 703
+    dimensions: 16x32
+    asset_id: PLANT
+    category: decor
+    footprint: { w: 1, h: 2 }
+    purpose: Small leafy potted plant (variant A).
+    description: |
+      16×32 sprite. `backgroundTiles: 1` — top row is background-overlay
+      friendly so other items can sit alongside the leaves visually.
+
+  - path: assets/furniture/PLANT/manifest.json
+    type: application/json
+    bytes: 232
+    purpose: Manifest for PLANT.
+    description: Decor-category, 16×32 px, 1×2 footprint, `backgroundTiles: 1`.
+
+  - path: assets/furniture/PLANT_2/PLANT_2.png
+    type: image/png
+    bytes: 543
+    dimensions: 16x32
+    asset_id: PLANT_2
+    category: decor
+    footprint: { w: 1, h: 2 }
+    purpose: Small potted plant (variant B; alternate silhouette).
+    description: |
+      Second 1×2 plant variant — same role/category as `PLANT` but with a
+      different leaf shape so layouts can mix two plant looks. Both share
+      the displayed name "Plant" in the editor palette.
+
+  - path: assets/furniture/PLANT_2/manifest.json
+    type: application/json
+    bytes: 234
+    purpose: Manifest for PLANT_2.
+    description: Decor-category, 16×32 px, 1×2 footprint, `backgroundTiles: 1`.
+
+  - path: assets/furniture/POT/POT.png
+    type: image/png
+    bytes: 288
+    dimensions: 16x16
+    asset_id: POT
+    category: decor
+    footprint: { w: 1, h: 1 }
+    purpose: Small terracotta plant pot (1×1 decoration).
+    description: 16×16 decor sprite; no background tiles, no special placement flags.
+
+  - path: assets/furniture/POT/manifest.json
+    type: application/json
+    bytes: 228
+    purpose: Manifest for POT.
+    description: Decor-category, 16×16 px, 1×1 footprint, single sprite.
+
+  - path: assets/furniture/SMALL_PAINTING/SMALL_PAINTING.png
+    type: image/png
+    bytes: 473
+    dimensions: 16x32
+    asset_id: SMALL_PAINTING
+    category: wall
+    footprint: { w: 1, h: 2 }
+    purpose: Narrow wall-mounted painting (variant A).
+    description: 16×32 wall sprite, hung on the back wall of the work area.
+
+  - path: assets/furniture/SMALL_PAINTING/manifest.json
+    type: application/json
+    bytes: 248
+    purpose: Manifest for SMALL_PAINTING.
+    description: Wall-category, 16×32 px, 1×2 footprint, `canPlaceOnWalls: true`.
+
+  - path: assets/furniture/SMALL_PAINTING_2/SMALL_PAINTING_2.png
+    type: image/png
+    bytes: 473
+    dimensions: 16x32
+    asset_id: SMALL_PAINTING_2
+    category: wall
+    footprint: { w: 1, h: 2 }
+    purpose: Alternate small wall painting (variant B).
+    description: |
+      Visually distinct second small painting (same dimensions/flags as
+      `SMALL_PAINTING`). Both share the display name "Small Painting" in
+      the editor palette.
+
+  - path: assets/furniture/SMALL_PAINTING_2/manifest.json
+    type: application/json
+    bytes: 251
+    purpose: Manifest for SMALL_PAINTING_2.
+    description: Wall-category, 16×32 px, 1×2 footprint, `canPlaceOnWalls: true`.
+
+  - path: assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png
+    type: image/png
+    bytes: 240
+    dimensions: 32x32
+    asset_id: SMALL_TABLE_FRONT
+    category: desks
+    orientation: front
+    footprint: { w: 2, h: 2 }
+    purpose: Front-facing 2×2 small table.
+
+  - path: assets/furniture/SMALL_TABLE/SMALL_TABLE_SIDE.png
+    type: image/png
+    bytes: 225
+    dimensions: 16x48
+    asset_id: SMALL_TABLE_SIDE
+    category: desks
+    orientation: side
+    footprint: { w: 1, h: 3 }
+    purpose: Side-orientation 1×3 small table.
+
+  - path: assets/furniture/SMALL_TABLE/manifest.json
+    type: application/json
+    bytes: 692
+    purpose: Manifest for the SMALL_TABLE 2-way rotation group.
+    description: |
+      Rotation group with `front` (32×32, 2×2 footprint) and `side` (16×48,
+      1×3 footprint) members. `backgroundTiles: 1` so the back row can be
+      overlapped by other items.
+
+  - path: assets/furniture/SOFA/SOFA_FRONT.png
+    type: image/png
+    bytes: 210
+    dimensions: 32x16
+    asset_id: SOFA_FRONT
+    category: chairs
+    orientation: front
+    footprint: { w: 2, h: 1 }
+    purpose: Front-facing 2-seat sofa (two seat tiles).
+
+  - path: assets/furniture/SOFA/SOFA_BACK.png
+    type: image/png
+    bytes: 192
+    dimensions: 32x16
+    asset_id: SOFA_BACK
+    category: chairs
+    orientation: back
+    footprint: { w: 2, h: 1 }
+    purpose: Back-facing 2-seat sofa.
+
+  - path: assets/furniture/SOFA/SOFA_SIDE.png
+    type: image/png
+    bytes: 255
+    dimensions: 16x32
+    asset_id: SOFA_SIDE
+    category: chairs
+    orientation: side
+    footprint: { w: 1, h: 2 }
+    purpose: Side-facing 2-seat sofa; mirrored at runtime for the opposite side.
+    description: |
+      `mirrorSide: true`. As a multi-tile chair, each footprint tile becomes
+      its own seat: keys are `uid` / `uid:1` (and `uid:2` for 3-tile chairs).
+
+  - path: assets/furniture/SOFA/manifest.json
+    type: application/json
+    bytes: 888
+    purpose: Manifest for the SOFA rotation group.
+    description: |
+      `groupType: "rotation"`, `rotationScheme: "3-way-mirror"`. Chairs
+      category. Footprint differs by orientation (front/back are 2×1,
+      side is 1×2) — the layout serializer derives the correct seat tiles
+      for each instance.
+
+  - path: assets/furniture/TABLE_FRONT/TABLE_FRONT.png
+    type: image/png
+    bytes: 400
+    dimensions: 48x64
+    asset_id: TABLE_FRONT
+    category: desks
+    footprint: { w: 3, h: 4 }
+    purpose: Large 3×4 conference / dining table (front orientation only).
+    description: |
+      48×64 sprite, the largest single furniture footprint in the pack.
+      `backgroundTiles: 1` and surface placement disabled. Used as the long
+      table on the left side of the default layout.
+
+  - path: assets/furniture/TABLE_FRONT/manifest.json
+    type: application/json
+    bytes: 238
+    purpose: Manifest for TABLE_FRONT.
+    description: Desks-category, 48×64 px, 3×4 footprint, single orientation.
+
+  - path: assets/furniture/WHITEBOARD/WHITEBOARD.png
+    type: image/png
+    bytes: 336
+    dimensions: 32x32
+    asset_id: WHITEBOARD
+    category: wall
+    footprint: { w: 2, h: 2 }
+    purpose: Office whiteboard mounted to a wall.
+    description: 32×32 wall sprite, `canPlaceOnWalls: true`, 2×2 footprint.
+
+  - path: assets/furniture/WHITEBOARD/manifest.json
+    type: application/json
+    bytes: 240
+    purpose: Manifest for WHITEBOARD.
+    description: Wall-category, 32×32 px, 2×2 footprint, single sprite.
+
+  - path: assets/furniture/WOODEN_BENCH/WOODEN_BENCH.png
+    type: image/png
+    bytes: 208
+    dimensions: 16x16
+    asset_id: WOODEN_BENCH
+    category: chairs
+    footprint: { w: 1, h: 1 }
+    purpose: Plain wooden single-tile bench seat.
+    description: |
+      1×1 chair-category sprite — counterpart to `CUSHIONED_BENCH`. Each
+      placement produces one seat at its single footprint tile.
+
+  - path: assets/furniture/WOODEN_BENCH/manifest.json
+    type: application/json
+    bytes: 247
+    purpose: Manifest for WOODEN_BENCH.
+    description: Chairs-category, 16×16 px, 1×1 footprint, single sprite.
+
+  - path: assets/furniture/WOODEN_CHAIR/WOODEN_CHAIR_FRONT.png
+    type: image/png
+    bytes: 295
+    dimensions: 16x32
+    asset_id: WOODEN_CHAIR_FRONT
+    category: chairs
+    orientation: front
+    purpose: Front-facing wooden chair (rotation group member).
+
+  - path: assets/furniture/WOODEN_CHAIR/WOODEN_CHAIR_BACK.png
+    type: image/png
+    bytes: 290
+    dimensions: 16x32
+    asset_id: WOODEN_CHAIR_BACK
+    category: chairs
+    orientation: back
+    purpose: Back-facing wooden chair.
+    description: |
+      Used heavily in the default layout — pairs of back-facing chairs sit
+      in front of the front-facing desks so the chair backs render in front
+      of seated characters.
+
+  - path: assets/furniture/WOODEN_CHAIR/WOODEN_CHAIR_SIDE.png
+    type: image/png
+    bytes: 261
+    dimensions: 16x32
+    asset_id: WOODEN_CHAIR_SIDE
+    category: chairs
+    orientation: side
+    purpose: Side-facing wooden chair; mirrored at runtime.
+    description: |
+      `mirrorSide: true` — `WOODEN_CHAIR_SIDE` and `WOODEN_CHAIR_SIDE:left`
+      cover both side facings. Used along the long table in the default
+      layout (`Screenshot.jpg`).
+
+  - path: assets/furniture/WOODEN_CHAIR/manifest.json
+    type: application/json
+    bytes: 952
+    purpose: Manifest for the WOODEN_CHAIR rotation group.
+    description: |
+      `type: "group"`, `groupType: "rotation"`, `rotationScheme:
+      "3-way-mirror"`. Three members (`front`/`back`/`side`), 1×1 footprint
+      each, `backgroundTiles: 1` so the chair's tall back tile can be
+      walked behind / overlapped by adjacent furniture.
+
+# =============================================================================
+# Quick stats
+# =============================================================================
+totals:
+  total_files: 85
+  total_bytes: 1369202
+  by_kind:
+    images_png: 56
+    images_jpg: 2
+    manifests_json: 25
+    layout_json: 1
+    fonts_ttf: 1
+  asset_groups:
+    characters: 6           # char_0 … char_5
+    floors: 9               # floor_0 … floor_8
+    walls: 1                # wall_0 (4×4 auto-tile sheet)
+    furniture_ids: 25       # one directory per asset ID
